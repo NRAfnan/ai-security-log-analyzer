@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Local AI Security Log Analyzer</title>
+  <style>
+    body { font: 16px system-ui, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #17202a; }
+    button { padding: 9px 16px; cursor: pointer; }
+    .card { border: 1px solid #d5d8dc; border-radius: 8px; padding: 18px; margin-top: 20px; }
+    .finding { border-left: 5px solid #95a5a6; padding: 10px 14px; margin: 12px 0; background: #f8f9f9; }
+    .Critical { border-color: #c0392b; } .High { border-color: #e67e22; }
+    .Medium { border-color: #f1c40f; } .Low { border-color: #27ae60; }
+    dt { font-weight: 700; margin-top: 8px; } dd { margin-left: 0; }
+    #error { color: #c0392b; }
+  </style>
+</head>
+<body>
+  <h1>Local AI Security Log Analyzer</h1>
+  <p>Upload a server log to analyze it with the local Ollama model.</p>
+  <form id="upload-form">
+    <input id="file" name="file" type="file" accept=".log,.txt" required>
+    <button type="submit">Start analysis</button>
+  </form>
+  <p id="error"></p>
+  <p id="warning" hidden></p>
+  <section id="progress" class="card" hidden>
+    <strong id="status">Queued</strong>
+    <p id="progress-text"></p>
+  </section>
+  <section id="results" class="card" hidden>
+    <h2>Final report</h2>
+    <div id="findings"></div>
+  </section>
+  <script>
+    const form = document.querySelector("#upload-form");
+    const progress = document.querySelector("#progress");
+    const status = document.querySelector("#status");
+    const progressText = document.querySelector("#progress-text");
+    const results = document.querySelector("#results");
+    const findings = document.querySelector("#findings");
+    const error = document.querySelector("#error");
+    const warning = document.querySelector("#warning");
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      error.textContent = "";
+      warning.hidden = true;
+      results.hidden = true;
+      progress.hidden = false;
+      const response = await fetch("/api/jobs", {
+        method: "POST",
+        body: new FormData(form)
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        error.textContent = body.error || "Upload failed.";
+        progress.hidden = true;
+        return;
+      }
+      poll(body.job_id);
+    });
+
+    async function poll(jobId) {
+      const response = await fetch(`/api/jobs/${jobId}`);
+      const job = await response.json();
+      status.textContent = job.status;
+      progressText.textContent = job.total
+        ? `Completed ${job.progress} of ${job.total} chunks`
+        : "Waiting for the analyzer...";
+      if (job.status === "complete" || job.status === "partial") {
+        if (job.status === "partial") {
+          warning.textContent = "Some model calls failed; results may be incomplete.";
+          warning.hidden = false;
+        }
+        showReport(job);
+      } else if (job.status === "failed") {
+        error.textContent = job.error || "The analysis failed.";
+      } else {
+        setTimeout(() => poll(jobId), 1000);
+      }
+    }
+
+    function showReport(job) {
+      results.hidden = false;
+      findings.innerHTML = job.findings.length
+        ? job.findings.map(renderFinding).join("")
+        : "<p>No supported attacks detected.</p>";
+    }
+
+    function renderFinding(item) {
+      const lines = item.lines.map(line => `L${line}`).join(", ");
+      return `<article class="finding ${escapeHtml(item.severity)}">
+        <h3>${escapeHtml(item.severity)}: ${escapeHtml(item.attack_type)}</h3>
+        <dl><dt>IP / ID</dt><dd>${escapeHtml(item.ip)}</dd>
+        <dt>Evidence</dt><dd>${escapeHtml(lines)}</dd>
+        <dt>Reason</dt><dd>${escapeHtml(item.reason)}</dd>
+        <dt>Suggested action</dt><dd>${escapeHtml(item.action)}</dd></dl>
+      </article>`;
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, char => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[char]));
+    }
+  </script>
+</body>
+</html>

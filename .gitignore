@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Packaging and test artifacts
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Flask and local configuration
+.env
+.env.*
+!.env.example
+instance/
+
+# Runtime uploads, reports, and job state
+jobs/
+*.log
+!Cultive8_Workspace_Agrigen_Server.log
+
+# Generated analyzer output
+report.json
+security_report.md
+smoke_test_report.md
+
+# Local tokenizer/model files
+tokenizer.json
+*.gguf
+
+# Editors and operating systems
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+.idea/
+.DS_Store
+Thumbs.db
